@@ -1,0 +1,65 @@
+{
+  "map": {
+    "id": "agenda-302-json",
+    "name": "Agenda 302 Brigadas (JSON)",
+    "slug": "agenda-302-json",
+    "is_public": true,
+    "style": {
+      "basemap": "carto-dark",
+      "colors": {
+        "primary": "#f59e0b",
+        "panel": "#0c1018",
+        "background": "#06090f"
+      },
+      "typography": {
+        "heading": "IBM Plex Mono",
+        "body": "Outfit"
+      }
+    },
+    "initial_view": {
+      "center": [-99.13, 23.5],
+      "zoom": 4.8,
+      "bearing": 0,
+      "pitch": 0
+    }
+  },
+  "sources": [
+    {
+      "id": "src-1",
+      "url": "/data/rutas_agenda_302.geojson",
+      "source_type": "geojson",
+      "layer_config": {
+        "renderMode": "cluster",
+        "clusterRadius": 55,
+        "clusterMaxZoom": 15
+      }
+    }
+  ],
+  "layers": [
+    {
+      "id": "layer-rutas",
+      "source_id": "src-1",
+      "layer_type": "line",
+      "paint": { "line-color": "#f59e0b", "line-width": 2 },
+      "is_visible": true
+    },
+    {
+      "id": "layer-puntos",
+      "source_id": "src-1",
+      "layer_type": "circle",
+      "paint": { "circle-color": "#6ee7b7", "circle-radius": 6 },
+      "is_visible": true
+    }
+  ],
+  "filters": [
+    {
+      "id": "filter-1",
+      "field": "i",
+      "filter_type": "select",
+      "label": "Institución",
+      "options_source": "dynamic",
+      "ui_position": "sidebar"
+    }
+  ],
+  "images": []
+}

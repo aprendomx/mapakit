@@ -1,0 +1,28 @@
+{
+  "name": "@mapakit/core",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "files": ["dist"],
+  "sideEffects": false,
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "maplibre-gl": "^4.1.1",
+    "supercluster": "^8.0.1",
+    "@supabase/supabase-js": "^2.39.0",
+    "sortablejs": "^1.15.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "vitest": "^1.0.0",
+    "jsdom": "^23.0.0"
+  }
+}

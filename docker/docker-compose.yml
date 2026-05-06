@@ -1,0 +1,105 @@
+version: '3.8'
+
+services:
+  supabase-db:
+    image: supabase/postgres:15.1.0.153
+    container_name: supabase-db
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "54322:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - supabase
+
+  supabase-kong:
+    image: kong:2.8.1
+    container_name: supabase-kong
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+    ports:
+      - "54321:8000"
+    volumes:
+      - ./volumes/kong.yml:/var/lib/kong/kong.yml
+    networks:
+      - supabase
+    depends_on:
+      - supabase-rest
+
+  supabase-rest:
+    image: postgrest/postgrest:v12.0.1
+    container_name: supabase-rest
+    environment:
+      PGRST_DB_URI: postgres://postgres:postgres@supabase-db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+    ports:
+      - "3000:3000"
+    networks:
+      - supabase
+    depends_on:
+      - supabase-db
+
+  supabase-meta:
+    image: supabase/postgres-meta:v0.80.0
+    container_name: supabase-meta
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: supabase-db
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: postgres
+      PG_META_DB_USER: postgres
+      PG_META_DB_PASSWORD: postgres
+    ports:
+      - "8081:8080"
+    networks:
+      - supabase
+    depends_on:
+      - supabase-db
+
+  supabase-studio:
+    image: supabase/studio:latest
+    container_name: supabase-studio
+    environment:
+      SUPABASE_URL: http://supabase-kong:8000
+      STUDIO_PG_META_URL: http://supabase-meta:8080
+      SUPABASE_SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0
+    ports:
+      - "54323:3000"
+    networks:
+      - supabase
+    depends_on:
+      - supabase-rest
+      - supabase-meta
+
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: mapas-app
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_SUPABASE_URL=http://localhost:54321
+      - VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiJ9.ZopqoUt20nEV9cklpv9e3yw3PVyZLmKs5qLD6nGL1SI
+      - VITE_MAP_CONFIG_ID=a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
+    volumes:
+      - ..:/app
+      - /app/node_modules
+    networks:
+      - supabase
+    depends_on:
+      - supabase-kong
+    command: ["pnpm", "--filter", "html-vanilla-demo", "dev"]
+
+volumes:
+  postgres_data:
+
+networks:
+  supabase:
+    driver: bridge

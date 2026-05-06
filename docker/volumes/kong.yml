@@ -1,0 +1,19 @@
+_format_version: "2.1"
+_transform: true
+
+services:
+  - name: supabase-rest
+    url: http://supabase-rest:3000
+    routes:
+      - name: rest-route
+        paths:
+          - /rest/v1
+        strip_path: true
+
+  - name: supabase-studio
+    url: http://supabase-studio:3000
+    routes:
+      - name: studio-route
+        paths:
+          - /
+        strip_path: false
