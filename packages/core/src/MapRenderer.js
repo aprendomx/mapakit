@@ -71,6 +71,9 @@ export class MapRenderer {
       throw new Error(`MapRenderer: unsupported basemap "${basemap}"`);
     }
 
+    // El minimapa reutiliza el mismo estilo base (ver _initMinimap).
+    this._styleSpec = styleSpec;
+
     this.map = new maplibregl.Map({
       container: this.container,
       style: styleSpec,
@@ -192,16 +195,24 @@ export class MapRenderer {
       };
       // Add outline if not present
       if (!this.map.getLayer(`${id}-outline`)) {
-        this.map.addLayer({
+        const outlineLayer = {
           id: `${id}-outline`,
           source: sourceId,
           type: 'line',
           paint: {
-            'line-color': layerConfig.paint?.['line-color'] ?? '#f59e0b',
+            // El contorno hereda el color declarado para el borde del fill
+            // antes de caer al color de acento por defecto.
+            'line-color': layerConfig.paint?.['line-color']
+              ?? layerConfig.paint?.['fill-outline-color']
+              ?? '#f59e0b',
             'line-width': layerConfig.paint?.['line-width'] ?? 1
-          },
-          filter: layerConfig.filter
-        });
+          }
+        };
+        // "filter: undefined" hace que el validador de MapLibre rechace la
+        // capa completa ("array expected, undefined found"); solo se incluye
+        // la clave cuando hay un filtro real.
+        if (layerConfig.filter) outlineLayer.filter = layerConfig.filter;
+        this.map.addLayer(outlineLayer);
       }
     } else if (type === 'line') {
       baseLayer.paint = {
@@ -708,36 +719,56 @@ export class MapRenderer {
     mm.className = 'mlf-minimap';
     mm.innerHTML = `
       <div class="mlf-minimap-title">Vista general</div>
-      <div class="mlf-minimap-box">
-        <div class="mlf-minimap-viewport"></div>
-      </div>
+      <div class="mlf-minimap-box"></div>
+      <div class="mlf-minimap-viewport"></div>
     `;
     this.container.appendChild(mm);
     this.minimapEl = mm;
 
-    // Update viewport rectangle on map move
+    // Mapa de contexto real: instancia MapLibre no interactiva con el mismo
+    // estilo base, centrada donde el mapa principal a zoom reducido. El
+    // estilo se clona porque MapLibre toma posesión del objeto que recibe.
+    this.minimap = new maplibregl.Map({
+      container: mm.querySelector('.mlf-minimap-box'),
+      style: structuredClone(this._styleSpec),
+      center: this.map.getCenter(),
+      zoom: Math.max(this.map.getZoom() - 4, 0),
+      interactive: false,
+      attributionControl: false,
+    });
+
     this.map.on('move', () => this._updateMinimapViewport());
-    this._updateMinimapViewport();
+    this.minimap.on('load', () => this._updateMinimapViewport());
   }
 
   _updateMinimapViewport() {
-    if (!this.minimapEl || !this.map) return;
+    if (!this.minimapEl || !this.map || !this.minimap) return;
     const viewport = this.minimapEl.querySelector('.mlf-minimap-viewport');
     if (!viewport) return;
 
+    this.minimap.jumpTo({
+      center: this.map.getCenter(),
+      zoom: Math.max(this.map.getZoom() - 4, 0),
+    });
+
+    // Rectángulo del viewport: los límites del mapa principal proyectados
+    // sobre el minimapa, recortados a su caja.
+    const box = this.minimapEl.querySelector('.mlf-minimap-box');
     const bounds = this.map.getBounds();
-    const sw = bounds.getSouthWest();
-    const ne = bounds.getNorthEast();
-
-    // Calculate approximate position/size in the minimap box
-    // This is a visual approximation
-    const center = this.map.getCenter();
-    const zoom = this.map.getZoom();
-
-    // Simple visual: the viewport indicator gets smaller as zoom increases
-    const size = Math.max(20, 100 - zoom * 5);
-    viewport.style.width = size + '%';
-    viewport.style.height = size + '%';
+    const sw = this.minimap.project(bounds.getSouthWest());
+    const ne = this.minimap.project(bounds.getNorthEast());
+    const clampX = (v) => Math.min(Math.max(v, 0), box.clientWidth);
+    const clampY = (v) => Math.min(Math.max(v, 0), box.clientHeight);
+    const left = clampX(Math.min(sw.x, ne.x));
+    const right = clampX(Math.max(sw.x, ne.x));
+    const top = clampY(Math.min(sw.y, ne.y));
+    const bottom = clampY(Math.max(sw.y, ne.y));
+    // La caja está desplazada 16px/4px dentro de .mlf-minimap; el rectángulo
+    // vive en .mlf-minimap para no quedar debajo del canvas del minimapa.
+    viewport.style.left = box.offsetLeft + left + 'px';
+    viewport.style.top = box.offsetTop + top + 'px';
+    viewport.style.width = Math.max(right - left, 2) + 'px';
+    viewport.style.height = Math.max(bottom - top, 2) + 'px';
   }
 
   _setupFeatureTooltip() {
@@ -785,6 +816,10 @@ export class MapRenderer {
     if (this.loaderEl) {
       this.loaderEl.remove();
       this.loaderEl = null;
+    }
+    if (this.minimap) {
+      this.minimap.remove();
+      this.minimap = null;
     }
     if (this.minimapEl) {
       this.minimapEl.remove();
@@ -844,8 +879,9 @@ export class MapRenderer {
       @keyframes mlf-rotate{to{transform:rotate(360deg)}}
       .mlf-minimap{position:absolute;bottom:24px;right:24px;width:120px;height:80px;background:rgba(6,9,15,0.8);border:1px solid var(--mlf-bd);border-radius:8px;z-index:5;overflow:hidden}
       .mlf-minimap-title{position:absolute;top:2px;left:4px;font-size:8px;color:var(--mlf-t3);text-transform:uppercase;letter-spacing:0.5px}
-      .mlf-minimap-box{position:absolute;inset:16px 4px 4px;border:1px solid rgba(255,255,255,0.1);border-radius:4px;position:relative}
-      .mlf-minimap-viewport{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);border:1px solid #f59e0b;background:rgba(245,158,11,0.1);border-radius:2px;transition:width 0.3s,height 0.3s}
+      .mlf-minimap-box{position:absolute;inset:16px 4px 4px;border:1px solid rgba(255,255,255,0.1);border-radius:4px;overflow:hidden}
+      .mlf-minimap-box .maplibregl-canvas{position:absolute;inset:0}
+      .mlf-minimap-viewport{position:absolute;border:1px solid #f59e0b;background:rgba(245,158,11,0.1);border-radius:2px;pointer-events:none;z-index:2}
     `;
     const styleEl = document.createElement('style');
       styleEl.id = 'mapakit-map';
