@@ -243,3 +243,107 @@ describe('UIManager skeleton', () => {
     expect(ui.elements.skeleton.style.display).toBe('block');
   });
 });
+
+describe('UIManager bottom sheet móvil', () => {
+  let ui;
+  let container;
+  let anchoOriginal;
+
+  beforeEach(() => {
+    anchoOriginal = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+    Object.defineProperty(window, 'innerWidth', { value: 375, configurable: true });
+    container = document.createElement('div');
+    container.id = 'test-container-bs';
+    document.body.appendChild(container);
+    ui = new UIManager({ container: '#test-container-bs', style: {}, uiLayout: {} });
+    ui.init({ name: 'Test' }, {});
+  });
+
+  afterEach(() => {
+    ui.destroy();
+    container.remove();
+    if (anchoOriginal) Object.defineProperty(window, 'innerWidth', anchoOriginal);
+  });
+
+  it('la hoja nace oculta mientras no tenga contenido', () => {
+    const sheet = container.querySelector('.mlf-bottom-sheet');
+    expect(sheet).not.toBeNull();
+    expect(sheet.style.display).toBe('none');
+  });
+
+  it('setBottomSheetContent con contenido la muestra', () => {
+    ui.setBottomSheetContent('<p>detalle</p>');
+    const sheet = container.querySelector('.mlf-bottom-sheet');
+    expect(sheet.style.display).toBe('');
+    expect(sheet.querySelector('.mlf-bs-content').textContent).toBe('detalle');
+  });
+
+  it('setBottomSheetContent vacío la colapsa y la oculta de nuevo', () => {
+    ui.setBottomSheetContent('<p>detalle</p>');
+    ui.expandBottomSheet();
+    ui.setBottomSheetContent('');
+    const sheet = container.querySelector('.mlf-bottom-sheet');
+    expect(sheet.style.display).toBe('none');
+    expect(sheet.classList.contains('full')).toBe(false);
+  });
+
+  it('en escritorio (>=768px) no se crea la hoja', () => {
+    // El toast del core usa IDs; se destruye la instancia móvil para no
+    // chocar con la segunda instancia dentro del mismo documento.
+    ui.destroy();
+    container.remove();
+    Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
+    const otro = document.createElement('div');
+    otro.id = 'test-container-bs-desktop';
+    document.body.appendChild(otro);
+    const uiEscritorio = new UIManager({ container: '#test-container-bs-desktop', style: {}, uiLayout: {} });
+    uiEscritorio.init({ name: 'Test' }, {});
+    expect(otro.querySelector('.mlf-bottom-sheet')).toBeNull();
+    uiEscritorio.destroy();
+    otro.remove();
+  });
+});
+
+describe('UIManager drawer móvil (FAB)', () => {
+  let anchoOriginal;
+  let container;
+
+  beforeEach(() => {
+    anchoOriginal = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+    Object.defineProperty(window, 'innerWidth', { value: 375, configurable: true });
+    container = document.createElement('div');
+    container.id = 'test-container-fab';
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    container.remove();
+    if (anchoOriginal) Object.defineProperty(window, 'innerWidth', anchoOriginal);
+  });
+
+  it('sin panel habilitado no se crean el FAB ni el backdrop', () => {
+    const ui = new UIManager({ container: '#test-container-fab', style: {}, uiLayout: {} });
+    ui.init({ name: 'Test' }, {});
+    expect(container.querySelector('.mlf-fab')).toBeNull();
+    expect(container.querySelector('.mlf-backdrop')).toBeNull();
+    ui.destroy();
+  });
+
+  it('con panel habilitado el FAB existe y abre el drawer', () => {
+    const ui = new UIManager({ container: '#test-container-fab', style: {}, uiLayout: { panel: { enabled: true } } });
+    ui.init({ name: 'Test' }, {});
+    const fab = container.querySelector('.mlf-fab');
+    expect(fab).not.toBeNull();
+    fab.click();
+    expect(container.querySelector('.mlf-panel').classList.contains('open')).toBe(true);
+    ui.destroy();
+  });
+
+  it('openDrawer sin panel no lanza ni muestra el backdrop', () => {
+    const ui = new UIManager({ container: '#test-container-fab', style: {}, uiLayout: {} });
+    ui.init({ name: 'Test' }, {});
+    expect(() => ui.openDrawer()).not.toThrow();
+    expect(container.querySelector('.mlf-backdrop.show')).toBeNull();
+    ui.destroy();
+  });
+});

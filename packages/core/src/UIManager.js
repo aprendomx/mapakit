@@ -501,6 +501,10 @@ export class UIManager {
 
   initMobileDrawer() {
     if (window.innerWidth >= 768) return;
+    // El drawer móvil solo existe para abrir el panel; sin panel construido
+    // el FAB no despliega nada (y _trapFocus(undefined) lanza), así que no
+    // se crean ni el botón ni el backdrop.
+    if (!this.elements.panel) return;
 
     // Backdrop
     const backdrop = document.createElement('div');
@@ -526,7 +530,8 @@ export class UIManager {
   }
 
   openDrawer() {
-    if (this.elements.panel) this.elements.panel.classList.add('open');
+    if (!this.elements.panel) return;
+    this.elements.panel.classList.add('open');
     if (this.elements.backdrop) this.elements.backdrop.classList.add('show');
     if (this.elements.fab) this.elements.fab.style.display = 'none';
     this._trapFocus(this.elements.panel);
@@ -636,6 +641,9 @@ export class UIManager {
     sheet.setAttribute('role', 'dialog');
     sheet.setAttribute('aria-modal', 'true');
     sheet.innerHTML = `<div class="mlf-bs-handle"></div><div class="mlf-bs-content"></div>`;
+    // La hoja nace vacía: permanece oculta hasta que alguien la pueble vía
+    // setBottomSheetContent(); mostrarla vacía solo tapa el mapa en móvil.
+    sheet.style.display = 'none';
     this.container.appendChild(sheet);
     this.elements.bottomSheet = sheet;
 
@@ -674,6 +682,25 @@ export class UIManager {
 
   collapseBottomSheet() {
     if (this.elements.bottomSheet) this.elements.bottomSheet.classList.remove('full');
+  }
+
+  /**
+   * Puebla la hoja inferior móvil y la muestra; con contenido vacío
+   * (null, '' o nodo sin hijos) la colapsa y la vuelve a ocultar.
+   * Acepta un string HTML o un Node.
+   */
+  setBottomSheetContent(contenido) {
+    const sheet = this.elements.bottomSheet;
+    if (!sheet) return;
+    const cuerpo = sheet.querySelector('.mlf-bs-content');
+    if (typeof contenido === 'string') {
+      cuerpo.innerHTML = contenido;
+    } else {
+      cuerpo.replaceChildren(...(contenido ? [contenido] : []));
+    }
+    const vacia = cuerpo.childNodes.length === 0;
+    if (vacia) this.collapseBottomSheet();
+    sheet.style.display = vacia ? 'none' : '';
   }
 
   destroy() {
